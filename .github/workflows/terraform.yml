@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-    
+
     paths:
       - terraform/**
 
@@ -31,8 +31,7 @@ jobs:
 
        - name: Setup Terraform with specified version on the runner
          uses: hashicorp/setup-terraform@v2
-         #with:
-         #  terraform_version: 1.6.3
+         
 
        - name: Terraform init
          id: init
@@ -55,7 +54,6 @@ jobs:
          if: steps.plan.outcome == 'failure' 
          run: exit 1     
 
-             
        - name: Terraform Apply
          id: apple
          if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -75,4 +73,39 @@ jobs:
 
        - name: Install Ingress controller
          if: steps.apple.outcome == 'success' && steps.getconfig.outcome == 'success'
-         run: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.1.3/deploy/static/provider/aws/deploy.yaml
+         run: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.1.3/deploy/static/provider/aws/deploy.yaml  
+
+       # ✅ Slack Notification (always runs)
+       - name: Slack Notification
+         if: always()
+         uses: slackapi/slack-github-action@v1.24.0
+         with:
+           payload: |
+             {
+               "attachments": [
+                 {
+                   "color": "${{ job.status == 'success' && '#36a64f' || '#ff0000' }}",
+                   "title": "🚀 Vprofile IAC Deployment",
+                   "text": "Job *${{ github.job }}* finished with status: *${{ job.status }}*",
+                   "fields": [
+                     {
+                       "title": "Repository",
+                       "value": "${{ github.repository }}",
+                       "short": true
+                     },
+                     {
+                       "title": "Branch",
+                       "value": "${{ github.ref_name }}",
+                       "short": true
+                     },
+                     {
+                       "title": "Actor",
+                       "value": "${{ github.actor }}",
+                       "short": true
+                     }
+                   ]
+                 }
+               ]
+             }
+         env:
+           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

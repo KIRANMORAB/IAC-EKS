@@ -1,6 +1,11 @@
 name: "Vprofile IAC"
-on: 
-  workflow_dispatch
+on:
+  workflow_dispatch:   # allows manual run
+  push:                # auto-run on push
+    branches:
+      - main
+    paths:
+      - terraform/**
 
 env:
  # Credentials for deployment to AWS

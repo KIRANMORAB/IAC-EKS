@@ -69,11 +69,8 @@ jobs:
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_USERNAME: GitHub Actions
-          SLACK_ICON_EMOJI: ':warning:'
           SLACK_COLOR: ${{ job.status }}
-          SLACK_MESSAGE: |
-            *Manual EKS Destroy*
-            *Status:* ${{ job.status }}
-            *Cluster:* ${{ env.EKS_CLUSTER }}
-            *Triggered by:* ${{ github.actor }}
+          SLACK_MESSAGE: >
+            EKS Destroy | Cluster: ${{ env.EKS_CLUSTER }} |
+            Status: ${{ job.status }} |
+            By: ${{ github.actor }}

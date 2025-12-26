@@ -1,0 +1,79 @@
+name: "Vprofile IAC – Manual EKS Destroy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Type DESTROY to confirm EKS deletion"
+        required: true
+
+env:
+  AWS_REGION: us-east-2
+  EKS_CLUSTER: vprofile-eks
+  BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE }}
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./terraform
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "❌ Destroy not confirmed"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check if EKS cluster exists
+        id: check_cluster
+        run: |
+          if aws eks describe-cluster \
+            --name ${{ env.EKS_CLUSTER }} \
+            --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Terraform Init
+        if: steps.check_cluster.outputs.exists == 'true'
+        run: terraform init -backend-config="bucket=${{ env.BUCKET_TF_STATE }}"
+
+      - name: Terraform Destroy
+        if: steps.check_cluster.outputs.exists == 'true'
+        run: terraform destroy -auto-approve
+
+      - name: Skip destroy (cluster not found)
+        if: steps.check_cluster.outputs.exists == 'false'
+        run: echo "ℹ️ EKS cluster not found — nothing to destroy."
+
+      - name: Slack Notification
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: GitHub Actions
+          SLACK_ICON_EMOJI: ':warning:'
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_MESSAGE: |
+            *Manual EKS Destroy*
+            *Status:* ${{ job.status }}
+            *Cluster:* ${{ env.EKS_CLUSTER }}
+            *Triggered by:* ${{ github.actor }}
